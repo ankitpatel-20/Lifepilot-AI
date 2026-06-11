@@ -26,6 +26,7 @@ import { ApiService } from "@/lib/api";
 
 export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -60,6 +61,7 @@ export default function DashboardOverview() {
           ApiService.getDecisions()
         ]);
 
+        setUser(profileData.user);
         setProfile(profileData.profile);
         setTasks(tasksData.tasks);
         setExpenses(expensesData.expenses);
@@ -292,7 +294,7 @@ export default function DashboardOverview() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-extrabold text-foreground tracking-tight">
-            {getGreeting()}, <span className="text-primary">{profile?.user?.fullName || "Ankit"}</span>
+            {getGreeting()}, <span className="text-primary">{user?.fullName || "Ankit"}</span>
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">Your financial status and study streak are fully calibrated.</p>
         </div>
