@@ -154,56 +154,75 @@ export default function DecisionEnginePage() {
     };
   };
 
-  const renderStructuredCard = (text: string, tags: string[]) => {
+  const renderStructuredCard = (text: string, tags: string[], compact: boolean = false) => {
     const data = parseAIRecommendation(text, tags);
     
+    const renderSavingsValue = (savings: string) => {
+      if (savings.includes(" (")) {
+        const [amount, duration] = savings.split(" (");
+        return (
+          <div className="flex flex-col xl:flex-row xl:items-baseline xl:gap-1.5 leading-none">
+            <span className="text-base font-extrabold text-emerald-400 font-mono leading-none">{amount}</span>
+            <span className="text-[10px] text-emerald-500/70 font-mono leading-none">({duration}</span>
+          </div>
+        );
+      }
+      return <span className="text-base font-extrabold text-emerald-400 font-mono leading-none">{savings}</span>;
+    };
+
     return (
       <div className="space-y-6 text-left font-sans">
         
         {/* KPI highlights */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`grid gap-4 ${compact ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-3"}`}>
           
           {/* Confidence Score Circular gauge */}
-          <div className="p-4 rounded-xl border border-border bg-black/40 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <span className="text-[10px] text-muted-foreground uppercase font-mono font-bold">Confidence Score</span>
-              <p className="text-lg font-extrabold text-white font-mono">{data.confidence}%</p>
+          <div className="p-4 rounded-xl border border-border bg-black/40 flex flex-col justify-between h-24">
+            <div className="flex justify-between items-start">
+              <span className="text-[10px] text-muted-foreground uppercase font-mono font-bold">Confidence</span>
+              <div className="w-8 h-8 relative shrink-0">
+                <svg className="w-full h-full" viewBox="0 0 36 36">
+                  <circle cx="18" cy="18" r="16" fill="none" className="stroke-neutral-800" strokeWidth="3.5" />
+                  <circle cx="18" cy="18" r="16" fill="none" className="stroke-primary" strokeWidth="3.5" strokeDasharray={`${data.confidence}, 100`} strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center font-mono text-[8px] font-bold text-white">{data.confidence}</div>
+              </div>
             </div>
-            <div className="w-10 h-10 relative shrink-0">
-              <svg className="w-full h-full" viewBox="0 0 36 36">
-                <circle cx="18" cy="18" r="16" fill="none" className="stroke-neutral-800" strokeWidth="3" />
-                <circle cx="18" cy="18" r="16" fill="none" className="stroke-primary" strokeWidth="3" strokeDasharray={`${data.confidence}, 100`} strokeLinecap="round" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center font-mono text-[9px] font-bold text-white">{data.confidence}</div>
+            <div className="mt-1">
+              <p className="text-xl font-extrabold text-white font-mono leading-none">{data.confidence}%</p>
             </div>
           </div>
 
           {/* Expected Savings */}
-          <div className="p-4 rounded-xl border border-border bg-black/40 flex items-center justify-between">
-            <div className="space-y-0.5">
+          <div className="p-4 rounded-xl border border-border bg-black/40 flex flex-col justify-between h-24">
+            <div className="flex justify-between items-start">
               <span className="text-[10px] text-muted-foreground uppercase font-mono font-bold">Expected Savings</span>
-              <p className="text-lg font-extrabold text-emerald-400 font-mono">{data.savings}</p>
+              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 shrink-0">
+                <PiggyBank size={14} />
+              </div>
             </div>
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">
-              <PiggyBank size={16} />
+            <div className="mt-1">
+              {renderSavingsValue(data.savings)}
             </div>
           </div>
 
           {/* Risk Level */}
-          <div className="p-4 rounded-xl border border-border bg-black/40 flex items-center justify-between">
-            <div className="space-y-0.5">
+          <div className="p-4 rounded-xl border border-border bg-black/40 flex flex-col justify-between h-24">
+            <div className="flex justify-between items-start gap-2">
               <span className="text-[10px] text-muted-foreground uppercase font-mono font-bold">Risk Level</span>
-              <p className="text-lg font-extrabold text-white font-mono">{data.risk}</p>
+              <span className={`px-2 py-0.5 rounded text-[8px] font-bold border font-mono uppercase shrink-0 ${
+                data.risk === "High"
+                  ? "bg-red-500/10 text-red-400 border-red-500/20"
+                  : data.risk === "Medium"
+                  ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                  : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+              }`}>
+                {data.risk}
+              </span>
             </div>
-            <span className={`px-2.5 py-1 rounded-lg text-[9px] font-bold border font-mono uppercase ${
-              data.risk === "High"
-                ? "bg-red-500/10 text-red-400 border-red-500/20"
-                : data.risk === "Medium"
-                ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
-                : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-            }`}>
-              {data.risk} Risk
-            </span>
+            <div className="mt-1">
+              <p className="text-xl font-extrabold text-white font-mono leading-none">{data.risk}</p>
+            </div>
           </div>
 
         </div>
@@ -336,7 +355,7 @@ export default function DecisionEnginePage() {
                   <span>AI Evaluation Blueprint</span>
                 </div>
                 <hr className="border-border/40" />
-                {renderStructuredCard(activeRecommendation, activeTags)}
+                {renderStructuredCard(activeRecommendation, activeTags, false)}
               </div>
             )}
           </div>
@@ -362,7 +381,7 @@ export default function DecisionEnginePage() {
                       <p className="font-bold text-white text-left line-clamp-2">{dec.query}</p>
                     </div>
                     <div className="border-t border-border/40 pt-3.5">
-                      {renderStructuredCard(dec.recommendation, dec.context_tags)}
+                      {renderStructuredCard(dec.recommendation, dec.context_tags, true)}
                     </div>
                   </div>
                 ))}
