@@ -236,27 +236,58 @@ export default function ExpensesPage() {
             <IndianRupee size={14} className="text-primary" />
           </div>
           
-          <div className="relative w-44 h-24 mx-auto mt-2 overflow-hidden shrink-0">
-            <svg className="w-full h-full" viewBox="0 0 100 100">
-              {/* Scale Background */}
-              <path d="M 10 80 A 40 40 0 0 1 90 80" fill="none" stroke="#1f1f23" strokeWidth="8" strokeLinecap="round" />
-              {/* Progress Arc */}
-              <path 
-                d="M 10 80 A 40 40 0 0 1 90 80" 
-                fill="none" 
-                stroke={budgetPercentage > 85 ? "#ef4444" : budgetPercentage > 60 ? "#eab308" : "#8b5cf6"} 
-                strokeWidth="8" 
-                strokeLinecap="round"
-                strokeDasharray={`${(budgetPercentage / 100) * 126}, 126`}
-              />
-              {/* Needle center pin */}
-              <circle cx="50" cy="80" r="5" fill="#ffffff" />
-              {/* Needle */}
-              <line x1="50" y1="80" x2={needleX} y2={needleY} stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
-            <div className="absolute bottom-1.5 inset-x-0 text-center flex flex-col items-center">
-              <span className="text-sm font-extrabold text-white font-mono">{budgetPercentage}%</span>
-              <span className="text-[9px] text-muted-foreground font-mono">₹{(budget - totalSpent).toLocaleString()} Remaining</span>
+          <div className="flex flex-col items-center justify-center my-auto">
+            <div className="relative w-44 h-20 overflow-hidden shrink-0">
+              <svg className="w-full h-full" viewBox="0 0 100 85">
+                {/* Scale Background */}
+                <path d="M 10 80 A 40 40 0 0 1 90 80" fill="none" stroke="#1f1f23" strokeWidth="8" strokeLinecap="round" />
+                {/* Progress Arc */}
+                <path 
+                  d="M 10 80 A 40 40 0 0 1 90 80" 
+                  fill="none" 
+                  stroke={budgetPercentage > 85 ? "#ef4444" : budgetPercentage > 60 ? "#eab308" : "#8b5cf6"} 
+                  strokeWidth="8" 
+                  strokeLinecap="round"
+                  strokeDasharray={`${(budgetPercentage / 100) * 126}, 126`}
+                />
+                {/* Needle */}
+                <line x1="50" y1="80" x2={needleX} y2={needleY} stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" />
+                {/* Needle center pin */}
+                <circle cx="50" cy="80" r="4.5" fill="#ffffff" />
+                {/* Background outline for percentage text to mask the needle */}
+                <text 
+                  x="50" 
+                  y="71" 
+                  textAnchor="middle" 
+                  className="text-[13px] font-mono font-extrabold"
+                  fill="none"
+                  stroke="#0c0c0e"
+                  strokeWidth="3.5"
+                >
+                  {budgetPercentage}%
+                </text>
+                {/* Main Percentage Text */}
+                <text 
+                  x="50" 
+                  y="71" 
+                  textAnchor="middle" 
+                  className="text-[13px] font-mono font-extrabold fill-white"
+                >
+                  {budgetPercentage}%
+                </text>
+              </svg>
+            </div>
+            
+            <div className="text-center mt-1">
+              {budget - totalSpent >= 0 ? (
+                <span className="text-[11px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                  ₹{(budget - totalSpent).toLocaleString("en-IN")} Remaining
+                </span>
+              ) : (
+                <span className="text-[11px] text-red-400 font-mono font-bold bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/20">
+                  ₹{Math.abs(budget - totalSpent).toLocaleString("en-IN")} Over Budget
+                </span>
+              )}
             </div>
           </div>
           
