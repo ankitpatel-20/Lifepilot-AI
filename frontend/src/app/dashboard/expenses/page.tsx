@@ -12,7 +12,9 @@ import {
   CheckCircle,
   HelpCircle,
   FileText,
-  AlertTriangle
+  AlertTriangle,
+  Lightbulb,
+  ArrowRight
 } from "lucide-react";
 import { ApiService } from "@/lib/api";
 
@@ -22,6 +24,9 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Custom tooltips
+  const [hoveredSlice, setHoveredSlice] = useState<number | null>(null);
 
   // Parse method state
   const [method, setMethod] = useState<"text" | "manual">("text");
@@ -84,6 +89,10 @@ export default function ExpensesPage() {
       setAmount("");
       setDescription("");
       setDate(new Date().toISOString().split("T")[0]);
+      
+      // Refresh database profile metrics
+      const profData = await ApiService.getProfile();
+      setProfile(profData.profile);
     } catch (err: any) {
       setError(err.message || "Failed to log expense.");
     } finally {
@@ -95,6 +104,9 @@ export default function ExpensesPage() {
     try {
       await ApiService.deleteExpense(id);
       setExpenses(expenses.filter(e => e.id !== id));
+      
+      const profData = await ApiService.getProfile();
+      setProfile(profData.profile);
     } catch (err) {
       setError("Failed to delete transaction.");
     }
@@ -102,7 +114,7 @@ export default function ExpensesPage() {
 
   // Compute metrics
   const totalSpent = expenses.reduce((acc, curr) => acc + Number(curr.amount), 0);
-  const budget = profile?.monthly_budget || 30000;
+  const budget = profile?.monthly_budget || 35000;
   const budgetPercentage = Math.min(100, Math.round((totalSpent / budget) * 100));
 
   const wastefulList = expenses.filter(e => e.is_wasteful);
@@ -116,29 +128,79 @@ export default function ExpensesPage() {
   }, {});
 
   const categoryList = [
-    { name: "Food", color: "bg-orange-500" },
-    { name: "Transport", color: "bg-blue-500" },
-    { name: "Rent", color: "bg-red-500" },
-    { name: "Subscriptions", color: "bg-indigo-500" },
-    { name: "Utilities", color: "bg-yellow-500" },
-    { name: "Shopping", color: "bg-pink-500" },
-    { name: "Healthcare", color: "bg-emerald-500" }
+    { name: "Food", color: "bg-orange-500", hex: "#f97316" },
+    { name: "Transport", color: "bg-blue-500", hex: "#3b82f6" },
+    { name: "Rent", color: "bg-red-500", hex: "#ef4444" },
+    { name: "Subscriptions", color: "bg-indigo-500", hex: "#6366f1" },
+    { name: "Utilities", color: "bg-yellow-500", hex: "#eab308" },
+    { name: "Shopping", color: "bg-pink-500", hex: "#ec4899" },
+    { name: "Healthcare", color: "bg-emerald-500", hex: "#10b981" }
   ];
 
+  const pieChartData = Object.entries(categoryTotals).map(([name, val]) => ({
+    label: name,
+    value: Number(val),
+    color: categoryList.find(c => c.name === name)?.hex || "#a855f7"
+  })).sort((a, b) => b.value - a.value);
+
+  // Fallback pie data if empty
+  const activePieData = pieChartData.length > 0 ? pieChartData : [
+    { label: "Rent", value: 12000, color: "#ef4444" },
+    { label: "Food", value: 4500, color: "#f97316" },
+    { label: "Transport", value: 2400, color: "#3b82f6" }
+  ];
+
+  const makeDonutSlices = (data: typeof activePieData) => {
+    const total = data.reduce((sum, d) => sum + d.value, 0);
+    let accumulatedAngle = 0;
+    return data.map((d) => {
+      const percentage = d.value / (total || 1);
+      const angle = percentage * 360;
+      
+      const startAngle = accumulatedAngle;
+      const endAngle = accumulatedAngle + angle;
+      accumulatedAngle += angle;
+
+      const rad = Math.PI / 180;
+      const x1 = 50 + 40 * Math.cos((startAngle - 90) * rad);
+      const y1 = 50 + 40 * Math.sin((startAngle - 90) * rad);
+      const x2 = 50 + 40 * Math.cos((endAngle - 90) * rad);
+      const y2 = 50 + 40 * Math.sin((endAngle - 90) * rad);
+      
+      const largeArc = angle > 180 ? 1 : 0;
+      return {
+        d: `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`,
+        label: d.label,
+        value: d.value,
+        color: d.color,
+        percentage: Math.round(percentage * 100)
+      };
+    });
+  };
+
+  const slices = makeDonutSlices(activePieData);
+
+  // Speedometer Gauge configuration (0 to 180 deg)
+  const gaugeAngle = (budgetPercentage / 100) * 180;
+  const needleRad = (gaugeAngle - 180) * (Math.PI / 180);
+  const needleX = 50 + 32 * Math.cos(needleRad);
+  const needleY = 80 + 32 * Math.sin(needleRad);
+
   return (
-    <div className="space-y-8 text-left">
+    <div className="space-y-8 text-left pb-16 font-sans">
+      
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-5">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Expense Auditor</h1>
-          <p className="text-xs text-muted-foreground mt-1">Audit expenditures, detect wasteful online markup loops, and save smarter.</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Expense Auditor</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Audit expenditures, detect wasteful online markup loops, and save smarter.</p>
         </div>
-        <div className="flex items-center gap-1 bg-secondary p-1 rounded-xl border border-border">
+        <div className="flex items-center gap-1.5 bg-secondary/80 p-1.5 rounded-2xl border border-border">
           <button
             onClick={() => { setMethod("text"); setError(null); }}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer transition-all ${
+            className={`px-4 py-2 text-xs font-bold rounded-xl cursor-pointer transition-all ${
               method === "text"
-                ? "bg-background text-foreground shadow-sm"
+                ? "bg-background text-foreground shadow-md"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -146,9 +208,9 @@ export default function ExpensesPage() {
           </button>
           <button
             onClick={() => { setMethod("manual"); setError(null); }}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer transition-all ${
+            className={`px-4 py-2 text-xs font-bold rounded-xl cursor-pointer transition-all ${
               method === "manual"
-                ? "bg-background text-foreground shadow-sm"
+                ? "bg-background text-foreground shadow-md"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -158,141 +220,140 @@ export default function ExpensesPage() {
       </div>
 
       {error && (
-        <div className="p-3 rounded-xl border border-red-500/20 bg-red-500/5 text-xs text-red-400 flex items-start gap-2 font-mono">
+        <div className="p-3.5 rounded-xl border border-red-500/20 bg-red-500/5 text-xs text-red-400 flex items-start gap-2 font-mono">
           <AlertCircle size={16} className="shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Total Spent Meter */}
-        <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-          <div className="flex justify-between items-center text-xs text-muted-foreground font-mono uppercase tracking-wider">
-            <span>Total Spent</span>
+      {/* KPI Cards & Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* KPI 1: Budget Utilization Speedometer Gauge */}
+        <div className="rounded-2xl border border-border bg-[#0c0c0e] p-5 flex flex-col justify-between h-56">
+          <div className="flex justify-between items-center text-xs text-muted-foreground font-mono uppercase tracking-wider font-bold">
+            <span>Budget Utilization Meter</span>
             <IndianRupee size={14} className="text-primary" />
           </div>
-          <div className="space-y-1">
-            <h2 className="text-3xl font-bold text-foreground">₹{totalSpent.toLocaleString("en-IN")}</h2>
-            <p className="text-[10px] text-muted-foreground font-mono">
-              of ₹{budget.toLocaleString("en-IN")} Monthly Target
-            </p>
-          </div>
-          <div className="space-y-1 pt-1">
-            <div className="w-full bg-secondary h-2.5 rounded-full overflow-hidden">
-              <div 
-                className={`h-full rounded-full transition-all duration-300 ${
-                  budgetPercentage > 85 ? "bg-red-500" : budgetPercentage > 60 ? "bg-yellow-500" : "bg-emerald-500"
-                }`}
-                style={{ width: `${budgetPercentage}%` }} 
+          
+          <div className="relative w-44 h-24 mx-auto mt-2 overflow-hidden shrink-0">
+            <svg className="w-full h-full" viewBox="0 0 100 100">
+              {/* Scale Background */}
+              <path d="M 10 80 A 40 40 0 0 1 90 80" fill="none" stroke="#1f1f23" strokeWidth="8" strokeLinecap="round" />
+              {/* Progress Arc */}
+              <path 
+                d="M 10 80 A 40 40 0 0 1 90 80" 
+                fill="none" 
+                stroke={budgetPercentage > 85 ? "#ef4444" : budgetPercentage > 60 ? "#eab308" : "#8b5cf6"} 
+                strokeWidth="8" 
+                strokeLinecap="round"
+                strokeDasharray={`${(budgetPercentage / 100) * 126}, 126`}
               />
+              {/* Needle center pin */}
+              <circle cx="50" cy="80" r="5" fill="#ffffff" />
+              {/* Needle */}
+              <line x1="50" y1="80" x2={needleX} y2={needleY} stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+            <div className="absolute bottom-1.5 inset-x-0 text-center flex flex-col items-center">
+              <span className="text-sm font-extrabold text-white font-mono">{budgetPercentage}%</span>
+              <span className="text-[9px] text-muted-foreground font-mono">₹{(budget - totalSpent).toLocaleString()} Remaining</span>
             </div>
-            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-              <span>{budgetPercentage}% Consumed</span>
-              <span>₹{(budget - totalSpent).toLocaleString("en-IN")} Left</span>
-            </div>
+          </div>
+          
+          <div className="flex justify-between text-[11px] text-muted-foreground font-mono">
+            <span>Spent: ₹{totalSpent}</span>
+            <span>Limit: ₹{budget}</span>
           </div>
         </div>
 
-        {/* Wasteful leakage details */}
-        <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-          <div className="flex justify-between items-center text-xs text-muted-foreground font-mono uppercase tracking-wider">
-            <span>AI Leakage Auditor</span>
-            <AlertTriangle size={14} className="text-rupee-saffron animate-float" />
+        {/* KPI 2: AI Waste Detection Card */}
+        <div className="rounded-2xl border border-border bg-[#0c0c0e] p-5 flex flex-col justify-between h-56">
+          <div className="flex justify-between items-center text-xs text-muted-foreground font-mono uppercase tracking-wider font-bold">
+            <span>AI Waste Detection</span>
+            <AlertTriangle size={14} className="text-rupee-saffron animate-pulse-slow" />
           </div>
-          <div className="space-y-1">
-            <h2 className="text-3xl font-bold text-foreground">₹{totalWastefulAmount.toLocaleString("en-IN")}</h2>
-            <p className="text-[10px] text-muted-foreground font-mono">
-              Bleeding across {wastefulCount} parsed items
-            </p>
+          <div className="space-y-1 text-left">
+            <span className="text-[10px] text-muted-foreground font-mono uppercase font-bold">Identified Leaks</span>
+            <h3 className="text-3xl font-extrabold text-red-400 tracking-tight">₹{totalWastefulAmount.toLocaleString("en-IN")}</h3>
+            <span className="text-[10px] text-muted-foreground font-mono">Across {wastefulCount} parsed markup logs</span>
           </div>
-          <div className="p-2.5 bg-rupee-saffron/10 border border-rupee-saffron/20 rounded-xl text-[10px] text-rupee-saffron leading-relaxed font-mono">
+          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] text-red-400 leading-relaxed font-mono text-left">
             {wastefulCount > 0 
-              ? `🚫 Online food deliveries & app cabs are compounding! Cooking at home or swapping for Metro saves ₹200+ per order.`
-              : `✅ Outstanding! No wasteful expenditures flagged. Keep up the high financial discipline.`
+              ? `🚫 Swiggy & Uber Moto loops found. Ordering local meals instead of apps saves ₹300 per day.`
+              : `✅ High fiscal score. Zero wasteful leakages flagged in your stream.`
             }
           </div>
         </div>
 
-        {/* Categorized Progress bar list */}
-        <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-          <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Category Split</p>
-          <div className="space-y-2.5 max-h-[120px] overflow-y-auto pr-1">
-            {categoryList.map((cat) => {
-              const spent = categoryTotals[cat.name] || 0;
-              const percent = totalSpent > 0 ? Math.round((spent / totalSpent) * 100) : 0;
-              if (spent === 0) return null;
-              
-              return (
-                <div key={cat.name} className="space-y-1 text-xs">
-                  <div className="flex justify-between text-[10px]">
-                    <span className="font-semibold text-foreground flex items-center gap-1.5">
-                      <span className={`w-2 h-2 rounded-full ${cat.color}`} />
-                      {cat.name}
-                    </span>
-                    <span className="text-muted-foreground font-mono">₹{spent.toLocaleString("en-IN")} ({percent}%)</span>
-                  </div>
-                  <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${cat.color}`} style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-            {expenses.length === 0 && (
-              <p className="text-[10px] text-muted-foreground text-center py-6">No expenditures recorded.</p>
-            )}
+        {/* KPI 3: Savings Opportunity Card */}
+        <div className="rounded-2xl border border-border bg-[#0c0c0e] p-5 flex flex-col justify-between h-56">
+          <div className="flex justify-between items-center text-xs text-muted-foreground font-mono uppercase tracking-wider font-bold">
+            <span>Savings Opportunity</span>
+            <Lightbulb size={14} className="text-emerald-400 animate-float" />
+          </div>
+          <div className="space-y-1 text-left">
+            <span className="text-[10px] text-muted-foreground font-mono uppercase font-bold">Weekly Target Swaps</span>
+            <h3 className="text-3xl font-extrabold text-emerald-400 tracking-tight">₹1,200/wk</h3>
+            <span className="text-[10px] text-muted-foreground font-mono">Immediate active alternatives</span>
+          </div>
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[10px] text-emerald-400 leading-relaxed font-mono text-left">
+            💡 **Swap Suggestion**:
+            <div className="flex items-center gap-1.5 mt-1 font-bold">
+              <span>App Cab (₹380)</span>
+              <ArrowRight size={10} />
+              <span>Namma Metro (₹50)</span>
+            </div>
           </div>
         </div>
+
       </div>
 
-      {/* Main interaction panels */}
+      {/* Interactive Charts Panel & Logging Form */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Left Column: Log Expense Box */}
+        {/* Left Column: Transaction Logging */}
         <div className="space-y-6">
-          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-            <h3 className="font-semibold text-foreground border-b border-border/40 pb-3 flex items-center gap-2">
+          <div className="rounded-2xl border border-border bg-[#0c0c0e] p-6 space-y-4">
+            <h3 className="text-lg font-bold text-white border-b border-border/40 pb-3 flex items-center gap-2">
               <Sparkles size={16} className="text-primary animate-pulse-slow" />
               <span>Log Transaction</span>
             </h3>
 
             <form onSubmit={handleCreateExpense} className="space-y-4 text-xs">
               {method === "text" ? (
-                // AI Text box
-                <div className="space-y-2">
-                  <label className="text-muted-foreground">Type raw transaction details</label>
+                <div className="space-y-2 text-left">
+                  <label className="text-muted-foreground font-semibold">Type raw transaction details</label>
                   <textarea
                     required
                     value={rawText}
                     onChange={(e) => setRawText(e.target.value)}
                     placeholder="e.g., spent ₹480 on Swiggy delivery lunch, or ₹80 Metro ticket recharge"
-                    className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground focus:outline-none h-24 resize-none leading-relaxed"
+                    className="w-full px-3.5 py-3 bg-background border border-border rounded-xl text-white placeholder-muted-foreground focus:outline-none h-28 resize-none leading-relaxed text-xs"
                   />
-                  <p className="text-[10px] text-muted-foreground leading-relaxed leading-normal">
-                    Tip: State the amount (in numbers or ₹ symbols) and description clearly. Our parser handles the categorization and analyzes cash waste metrics.
+                  <p className="text-[10px] text-muted-foreground leading-normal font-mono">
+                    Type a description and cash amount. Our AI-helper automatically parses the category and wasteful leakage index.
                   </p>
                 </div>
               ) : (
-                // Manual input fields
-                <div className="space-y-3">
+                <div className="space-y-3 text-left">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-muted-foreground">Amount (₹)</label>
+                      <label className="text-muted-foreground font-semibold">Amount (₹)</label>
                       <input
                         type="number"
                         required
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         placeholder="250"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none"
+                        className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-white focus:outline-none font-mono text-xs"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-muted-foreground">Category</label>
+                      <label className="text-muted-foreground font-semibold">Category</label>
                       <select
                         value={category}
                         onChange={(e) => setCategory(e.target.value)}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none cursor-pointer"
+                        className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-white focus:outline-none cursor-pointer text-xs"
                       >
                         {categoryList.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                       </select>
@@ -300,24 +361,24 @@ export default function ExpensesPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-muted-foreground">Description</label>
+                    <label className="text-muted-foreground font-semibold">Description</label>
                     <input
                       type="text"
                       required
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Paneer Biryani lunch"
-                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none"
+                      className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-white focus:outline-none text-xs"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-muted-foreground">Date</label>
+                    <label className="text-muted-foreground font-semibold">Date</label>
                     <input
                       type="date"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none cursor-pointer"
+                      className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-white focus:outline-none cursor-pointer font-mono text-xs"
                     />
                   </div>
                 </div>
@@ -326,19 +387,104 @@ export default function ExpensesPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-2.5 rounded-lg bg-secondary border border-border hover:bg-secondary/80 font-medium text-foreground transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="btn-primary w-full text-xs font-bold"
               >
                 {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <Plus size={14} />}
                 <span>Log Transaction</span>
               </button>
             </form>
           </div>
+
+          {/* Interactive Donut Breakdown */}
+          <div className="rounded-2xl border border-border bg-[#0c0c0e] p-6 space-y-4">
+            <h3 className="text-lg font-bold text-white border-b border-border/40 pb-3 flex items-center gap-2">
+              <TrendingDown size={16} className="text-primary" />
+              <span>Expense Breakdown</span>
+            </h3>
+
+            <div className="flex items-center justify-around gap-2 my-2">
+              <div className="relative w-28 h-28 shrink-0">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                  {slices.map((slice, idx) => {
+                    if (!slice) return null;
+                    const isHovered = hoveredSlice === idx;
+                    return (
+                      <path
+                        key={idx}
+                        d={slice.d}
+                        fill={slice.color}
+                        className="transition-all duration-300 cursor-pointer"
+                        style={{
+                          transform: isHovered ? "scale(1.05) translate(-2px, -2px)" : "scale(1)",
+                          transformOrigin: "50px 50px"
+                        }}
+                        onMouseEnter={() => setHoveredSlice(idx)}
+                        onMouseLeave={() => setHoveredSlice(null)}
+                      />
+                    );
+                  })}
+                  <circle cx="50" cy="50" r="25" fill="#0c0c0e" />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-[10px] text-white font-mono font-extrabold">
+                    {hoveredSlice !== null ? slices[hoveredSlice]?.label : "Total"}
+                  </span>
+                  <span className="text-[10px] text-primary font-mono font-bold">
+                    {hoveredSlice !== null ? `${slices[hoveredSlice]?.percentage}%` : `₹${totalSpent}`}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5 text-[9px] font-mono text-left max-h-[120px] overflow-y-auto">
+                {activePieData.map((d, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                    <span className="text-white font-bold">{d.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
         </div>
 
-        {/* Right Column: Transaction Logs */}
+        {/* Right Column: Transaction Logs & Category comparison */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-            <h3 className="font-semibold text-foreground border-b border-border/40 pb-3 flex items-center gap-2">
+          
+          {/* Category Comparison horizontal bars */}
+          <div className="rounded-2xl border border-border bg-[#0c0c0e] p-6 space-y-4">
+            <h3 className="text-lg font-bold text-white border-b border-border/40 pb-3 flex items-center gap-2">
+              <FileText size={18} className="text-primary" />
+              <span>Category Allocation Comparison</span>
+            </h3>
+
+            <div className="space-y-3">
+              {categoryList.map((cat) => {
+                const spent = categoryTotals[cat.name] || 0;
+                const percent = totalSpent > 0 ? Math.round((spent / totalSpent) * 100) : 0;
+                if (spent === 0) return null;
+                
+                return (
+                  <div key={cat.name} className="space-y-1.5 text-xs text-left">
+                    <div className="flex justify-between text-[11px] font-mono">
+                      <span className="font-bold text-white flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${cat.color}`} />
+                        {cat.name}
+                      </span>
+                      <span className="text-muted-foreground font-semibold">₹{spent.toLocaleString("en-IN")} ({percent}%)</span>
+                    </div>
+                    <div className="w-full bg-[#1f1f23] h-2.5 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${cat.color}`} style={{ width: `${percent}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Transaction Logs Stream */}
+          <div className="rounded-2xl border border-border bg-[#0c0c0e] p-6 space-y-4">
+            <h3 className="text-lg font-bold text-white border-b border-border/40 pb-3 flex items-center gap-2">
               <FileText size={18} className="text-primary" />
               <span>Expenditure Audit Stream</span>
             </h3>
@@ -349,26 +495,27 @@ export default function ExpensesPage() {
               </div>
             ) : expenses.length === 0 ? (
               <div className="py-12 text-center text-xs text-muted-foreground">
-                No logged expenses yet. Use the semantic box to parse your first transaction.
+                No logged expenses yet. Use the parser on the left to add your first transaction.
               </div>
             ) : (
               <div className="space-y-4 max-h-[450px] overflow-y-auto pr-1">
                 {expenses.map((expense) => {
-                  const categoryColor = categoryList.find(c => c.name === expense.category)?.color || "bg-secondary";
+                  const catMeta = categoryList.find(c => c.name === expense.category);
+                  const categoryColor = catMeta?.color || "bg-secondary";
                   
                   return (
                     <div 
                       key={expense.id}
                       className={`p-4 rounded-xl border bg-background/50 hover:bg-background transition-all flex flex-col gap-3 relative group ${
-                        expense.is_wasteful ? "border-rupee-saffron/30 bg-rupee-saffron/[0.01]" : "border-border"
+                        expense.is_wasteful ? "border-red-500/20 bg-red-500/[0.01]" : "border-border"
                       }`}
                     >
                       <div className="flex justify-between items-start text-xs">
                         <div className="flex items-center gap-3">
-                          <span className={`w-2.5 h-2.5 rounded-full ${categoryColor}`} />
+                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${categoryColor}`} />
                           <div className="text-left">
-                            <p className="font-semibold text-foreground leading-normal">{expense.description}</p>
-                            <div className="flex gap-3 text-[10px] text-muted-foreground font-mono mt-0.5">
+                            <p className="font-bold text-white leading-normal">{expense.description}</p>
+                            <div className="flex gap-3 text-[10px] text-muted-foreground font-mono mt-0.5 font-bold">
                               <span>{expense.category}</span>
                               <span>•</span>
                               <span>{expense.date}</span>
@@ -377,7 +524,7 @@ export default function ExpensesPage() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                          <span className="font-mono text-sm font-extrabold text-foreground">₹{(Number(expense.amount) || 0).toFixed(0)}</span>
+                          <span className="font-mono text-sm font-extrabold text-white">₹{(Number(expense.amount) || 0).toFixed(0)}</span>
                           
                           <button
                             onClick={() => handleDeleteExpense(expense.id)}
@@ -391,7 +538,7 @@ export default function ExpensesPage() {
 
                       {/* Wasteful Audit Tips */}
                       {expense.is_wasteful && expense.savings_insight && (
-                        <div className="p-3 bg-rupee-saffron/10 border border-rupee-saffron/20 rounded-xl text-[10px] text-rupee-saffron text-left leading-relaxed font-mono">
+                        <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] text-red-400 text-left leading-relaxed font-mono font-semibold">
                           ⚠️ **Audit Alert:** {expense.savings_insight}
                         </div>
                       )}
@@ -401,8 +548,11 @@ export default function ExpensesPage() {
               </div>
             )}
           </div>
+
         </div>
+
       </div>
+
     </div>
   );
 }
